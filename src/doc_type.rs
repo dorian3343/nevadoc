@@ -2,6 +2,10 @@ use std::io::{BufRead, BufReader};
 
 use std::fs::OpenOptions;
 use std::io::Write;
+use Path;
+use fs;
+use File;
+use std::io::Read;
 
 #[derive(Debug)]
 pub struct Doc {
@@ -25,6 +29,7 @@ impl Doc {
     pub fn set_description(&mut self, description: String) {
         self.description = Some(description);
     }
+
     pub fn generate_md(&self) -> String {
         let mut text = String::new();
         text += &format!("# {}\n", self.name);
@@ -60,10 +65,10 @@ pub fn create_description(vec: Vec<String>) -> String {
         .join("\n")
 }
 
-pub fn generate_docs<R>(reader: BufReader<R>) where R: std::io::Read{
+pub fn generate_docs<R>(reader: BufReader<R>, output: &String) where R: std::io::Read{
     let mut description = Vec::new();
     let mut doc = Doc::new(String::new(), String::new(), None); // Initialize with default values
-
+    let noutput = rename_to_doc_md(output);
     for line in reader.lines() {
         let line_contents = line.unwrap();
 
@@ -84,7 +89,8 @@ pub fn generate_docs<R>(reader: BufReader<R>) where R: std::io::Read{
                 }
 
                 // Write the finalized doc to the file
-                let mut file = match OpenOptions::new().append(true).create(true).open("output.md") {
+                println!("{}",output);
+                let mut file = match OpenOptions::new().append(true).create(true).open(noutput.clone()) {
                     Err(why) => panic!("couldn't open file: {}", why),
                     Ok(file) => file,
                 };
@@ -108,7 +114,7 @@ pub fn generate_docs<R>(reader: BufReader<R>) where R: std::io::Read{
             doc.set_description(create_description(description.clone()));
         }
 
-        let mut file = match OpenOptions::new().append(true).create(true).open("output.md") {
+        let mut file = match OpenOptions::new().append(true).create(true).open(noutput) {
             Err(why) => panic!("couldn't open file: {}", why),
             Ok(file) => file,
         };
@@ -118,4 +124,49 @@ pub fn generate_docs<R>(reader: BufReader<R>) where R: std::io::Read{
             Ok(_) => println!("successfully wrote to file"),
         }
     }
+}
+pub fn generate_docs_dir(path: &Path) {
+    let paths = match fs::read_dir(path) {
+        Ok(paths) => paths,
+        Err(e) => {
+            eprintln!("Failed to read directory {}: {}", path.display(), e);
+            return;
+        },
+    };
+
+    let new_name = path.with_file_name(format!("{}_docs", path.file_name().unwrap().to_string_lossy()));
+    if let Err(e) = fs::create_dir(&new_name) {
+        eprintln!("Failed to create directory {}: {}", new_name.display(), e);
+        return;
+    }
+
+    for entry in paths {
+        match entry {
+            Ok(entry) => {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    generate_docs_dir(&entry_path);
+                } else {
+                    let file = match File::open(&entry_path) {
+                        Err(why) => panic!("Documentation generation failed: Couldn't open {}: {}", path.display(), why),
+                        Ok(file) => file,
+                    };
+                    let reader = BufReader::new(file);
+                    generate_docs(reader, &(new_name.display().to_string() + "/" + &path.display().to_string()));
+                }
+            },
+            Err(e) => eprintln!("Failed to read an entry: {}", e),
+        }
+    }
+    println!("New directory created: {}", new_name.display());
+}
+
+fn rename_to_doc_md(file_name: &str) -> String {
+    let mut parts: Vec<&str> = file_name.splitn(2, '.').collect();
+    if parts.len() == 1 {
+        parts.push("");  // Add an empty string for the extension part
+    }
+    let base_name = parts.remove(0);
+    println!("{}",base_name);
+    format!("{}_doc.md", base_name)
 }
