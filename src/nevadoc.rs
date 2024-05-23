@@ -26,12 +26,12 @@ fn main() {
                     Ok(file) => file,
                 };
                 let reader = BufReader::new(file);
-                generate_docs(reader,&path.display().to_string());
+                generate_docs(reader,&"README.md".to_string());
             } else if metadata.is_dir() {
-                // get paths in dir
-                generate_docs_dir(&path);
-
-
+                match generate_docs_dir(&path) {
+                    Ok(_) => println!("Directory successfully generated"),
+                    Err(e) => eprintln!("Error: {}", e),
+                }
             }
         } else {
             println!("Documentation generation failed: The path does not exist or cannot be accessed.");
