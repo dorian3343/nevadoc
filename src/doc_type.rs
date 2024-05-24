@@ -3,11 +3,13 @@ use std::io::{BufRead, BufReader};
 use std::fs::OpenOptions;
 use File;
 use std::io::Write;
+use std::ffi::OsStr;
 use env;
 use Path;
 use std::path::PathBuf;
 use fs;
 use std::io::Read;
+use std::io;
 
 #[derive(Debug)]
 pub struct Doc {
@@ -124,27 +126,29 @@ pub fn generate_docs<R>(reader: BufReader<R>, output: &String) where R: std::io:
     }
 }
 
-pub fn generate_docs_dir(path: &Path) -> Result<(), std::io::Error> {
-    // Create a new folder
-    let docs_path = format!("{}_docs", path.display());
-    fs::create_dir(&docs_path)?;
 
-    // Iterate over directory entries
+
+pub fn generate_docs_dir(path: &Path, output: String) -> io::Result<()> {
+    let mut current_path = output.clone();
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
-
-        // Check if the extension is "neva"
-        if let Some(ext) = path.extension() {
-            if ext == "neva" {
-                let file_stem = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or("");
-                let file = File::open(&path)?;
-                let reader = BufReader::new(file);
-                println!("{:?}",file_stem);
-                generate_docs(reader, &(docs_path.clone() + "/README.md"));
+        if path.is_dir() {
+            if let Some(dir_name) = path.file_name().and_then(OsStr::to_str) {
+                let new_output = current_path.clone() + "/" + dir_name;
+                fs::create_dir(&new_output)?;
+                generate_docs_dir(&path, new_output)?;
+            }
+        } else {
+            if let Some(ext) = path.extension() {
+                if ext == "neva" {
+                    let file = File::open(&path)?;
+                    let reader = BufReader::new(file);
+                    generate_docs(reader, &(output.to_string() + "/README.md"));
+                    println!("{}", output);
+                }
             }
         }
     }
     Ok(())
-
 }

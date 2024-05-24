@@ -13,6 +13,8 @@ fn main() {
     if args.len() > 1 {
         let path = Path::new(&args[1]);
         // Check if a target is a file or dir
+        generate_docs_folder();
+        let target_output = "docs";
         if let Ok(metadata) = fs::metadata(path) {
             if metadata.is_file() {
                 //Check if the file is a Neva file
@@ -26,9 +28,9 @@ fn main() {
                     Ok(file) => file,
                 };
                 let reader = BufReader::new(file);
-                generate_docs(reader,&"README.md".to_string());
+                generate_docs(reader,&(target_output.to_string() + "/README.md").to_string());
             } else if metadata.is_dir() {
-                match generate_docs_dir(&path) {
+                match generate_docs_dir(&path,target_output.to_string()) {
                     Ok(_) => println!("Directory successfully generated"),
                     Err(e) => eprintln!("Error: {}", e),
                 }
@@ -39,6 +41,15 @@ fn main() {
     } else {
         println!("Usage: nevadoc [TARGET FILE / DIR]");
     }
+}
+
+fn generate_docs_folder(){
+    match fs::create_dir_all("docs"){
+        Err(why) => panic!("couldn't write to file: {}", why),
+        Ok(_) => {},
+    }
+
+
 }
 
 fn is_neva_file(path: &Path) -> bool {
